@@ -50,6 +50,7 @@ def main():
     n_gpus = torch.cuda.device_count()
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '6060'
+    print(n_gpus)
 
     hps = utils.get_hparams()
     mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
@@ -237,17 +238,18 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
     else:
         loader = train_loader
 
-    for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths) in enumerate(loader):
+    for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths, emo) in enumerate(loader):
         if net_g.module.use_noise_scaled_mas:
             current_mas_noise_scale = net_g.module.mas_noise_scale_initial - net_g.module.noise_scale_delta * global_step
             net_g.module.current_mas_noise_scale = max(current_mas_noise_scale, 0.0)
         x, x_lengths = x.cuda(rank, non_blocking=True), x_lengths.cuda(rank, non_blocking=True)
         spec, spec_lengths = spec.cuda(rank, non_blocking=True), spec_lengths.cuda(rank, non_blocking=True)
         y, y_lengths = y.cuda(rank, non_blocking=True), y_lengths.cuda(rank, non_blocking=True)
+        emo = emo.cuda(rank, non_blocking=True)
 
         with autocast(enabled=hps.train.fp16_run):
             y_hat, y_hat_mb, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q), (
-                hidden_x, logw, logw_) = net_g(x, x_lengths, spec, spec_lengths)
+                hidden_x, logw, logw_) = net_g(x, x_lengths, spec, spec_lengths, emo=emo)
 
             if hps.model.use_mel_posterior_encoder or hps.data.use_mel_posterior_encoder:
                 mel = spec
@@ -391,10 +393,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
 def evaluate(hps, generator, eval_loader, writer_eval):
     generator.eval()
     with torch.no_grad():
-        for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths) in enumerate(eval_loader):
+        for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths, emo) in enumerate(eval_loader):
             x, x_lengths = x.cuda(0), x_lengths.cuda(0)
             spec, spec_lengths = spec.cuda(0), spec_lengths.cuda(0)
             y, y_lengths = y.cuda(0), y_lengths.cuda(0)
+            emo = emo.cuda(0)
 
             # remove else
             x = x[:1]
@@ -403,9 +406,10 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             spec_lengths = spec_lengths[:1]
             y = y[:1]
             y_lengths = y_lengths[:1]
+            emo = emo[:1]
             break
 
-        y_hat, y_hat_mb, attn, mask, *_ = generator.module.infer(x, x_lengths, max_len=1000)
+        y_hat, y_hat_mb, attn, mask, *_ = generator.module.infer(x, x_lengths, emo=emo, max_len=1000)
         y_hat_lengths = mask.sum([1, 2]).long() * hps.data.hop_length
 
         if hps.model.use_mel_posterior_encoder or hps.data.use_mel_posterior_encoder:  # 2의 경우

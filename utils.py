@@ -11,7 +11,7 @@ import torch
 
 MATPLOTLIB_FLAG = False
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, level=logging.WARNING)
 logger = logging
 
 
@@ -71,7 +71,7 @@ def latest_checkpoint_path(dir_path, regex="G_*.pth"):
   f_list = glob.glob(os.path.join(dir_path, regex))
   f_list.sort(key=lambda f: int("".join(filter(str.isdigit, f))))
   x = f_list[-1]
-  print(x)
+  #print(x)
   return x
 
 

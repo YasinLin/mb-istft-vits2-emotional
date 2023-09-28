@@ -64,7 +64,8 @@ class TextAudioLoader(torch.utils.data.Dataset):
         audiopath, text = audiopath_and_text[0], audiopath_and_text[1]
         text = self.get_text(text)
         spec, wav = self.get_audio(audiopath)
-        return (text, spec, wav)
+        emo = torch.FloatTensor(np.load(audiopath+".emo.npy"))
+        return (text, spec, wav, emo)
 
     def get_audio(self, filename):
         # TODO : if linear spec exists convert to mel from existing linear spec
@@ -146,9 +147,13 @@ class TextAudioCollate():
         text_padded = torch.LongTensor(len(batch), max_text_len)
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
+        emo = torch.FloatTensor(len(batch), 1024)
+        
         text_padded.zero_()
         spec_padded.zero_()
         wav_padded.zero_()
+        emo.zero_()
+            
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
 
@@ -163,10 +168,12 @@ class TextAudioCollate():
             wav = row[2]
             wav_padded[i, :, :wav.size(1)] = wav
             wav_lengths[i] = wav.size(1)
+            
+            emo[i, :] = row[3]
 
         if self.return_ids:
             return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths, ids_sorted_decreasing
-        return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths
+        return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths, emo
 
 
 """Multi speaker version"""
@@ -223,7 +230,8 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         text = self.get_text(text)
         spec, wav = self.get_audio(audiopath)
         sid = self.get_sid(sid)
-        return (text, spec, wav, sid)
+        emo = torch.FloatTensor(np.load(audiopath+".emo.npy"))
+        return (text, spec, wav, sid, emo)
 
     def get_audio(self, filename):
         # TODO : if linear spec exists convert to mel from existing linear spec
@@ -310,9 +318,13 @@ class TextAudioSpeakerCollate():
         text_padded = torch.LongTensor(len(batch), max_text_len)
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
+        emo = torch.FloatTensor(len(batch), 1024)
+        
         text_padded.zero_()
         spec_padded.zero_()
         wav_padded.zero_()
+        emo.zero_()
+        
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
 
@@ -329,10 +341,12 @@ class TextAudioSpeakerCollate():
             wav_lengths[i] = wav.size(1)
 
             sid[i] = row[3]
+            
+            emo[i, :] = row[4]
 
         if self.return_ids:
             return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths, sid, ids_sorted_decreasing
-        return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths, sid
+        return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths, sid, emo
 
 
 class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
