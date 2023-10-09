@@ -56,7 +56,7 @@ class EmotionModel(Wav2Vec2PreTrainedModel):
 
 # load model from hub
 device = 'cuda' if torch.cuda.is_available() else "cpu"
-model_name = '/practice/models/wav2vec2-large-robust-12-ft-emotion-msp-dim'
+model_name = '/python/vocal_clone/mb-istft-vits2-emotional/models/wav2vec2-large-robust-12-ft-emotion-msp-dim'
 processor = Wav2Vec2Processor.from_pretrained(model_name)
 model = EmotionModel.from_pretrained(model_name).to(device)
 
@@ -95,11 +95,13 @@ rootpath = "dataset/nene"
 embs = []
 wavnames = []
 
+srate = 16000
+
 
 def extract_dir(path):
     rootpath = path
     for idx, wavname in enumerate(os.listdir(rootpath)):
-        wav, sr = librosa.load(f"{rootpath}/{wavname}", 16000)
+        wav, sr = librosa.load(f"{rootpath}/{wavname}", srate)
         emb = process_func(np.expand_dims(wav, 0), sr, embeddings=True)
         embs.append(emb)
         wavnames.append(wavname)
@@ -108,13 +110,13 @@ def extract_dir(path):
 
 
 def extract_wav(path):
-    wav, sr = librosa.load(path, 16000)
+    wav, sr = librosa.load(path, srate)
     emb = process_func(np.expand_dims(wav, 0), sr, embeddings=True)
     return emb
 
 
 def preprocess_one(path):
-    wav, sr = librosa.load(path, 16000)
+    wav, sr = librosa.load(path, srate)
     emb = process_func(np.expand_dims(wav, 0), sr, embeddings=True)
     np.save(f"{path}.emo.npy", emb.squeeze(0))
     return emb

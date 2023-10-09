@@ -256,6 +256,21 @@ def chinese_to_bopomofo(text):
         text += ''.join(bopomofos)
     return text
 
+def chinese_to_bopomofo2(text):
+    text = text.replace('、', '，').replace('；', '，').replace('：', '，')
+    words = jieba.lcut(text, cut_all=False)
+    text = ''
+    for word in words:
+        bopomofos = lazy_pinyin(word, BOPOMOFO)
+        if not re.search('[\u4e00-\u9fff]', word):
+            text += word
+            continue
+        for i in range(len(bopomofos)):
+            bopomofos[i] = re.sub(r'([\u3105-\u3129])$', r'\1ˉ', bopomofos[i])
+        # if text != '':
+        #     text += ' '
+        text += ''.join(bopomofos)
+    return text
 
 def latin_to_bopomofo(text):
     for regex, replacement in _latin_to_bopomofo:

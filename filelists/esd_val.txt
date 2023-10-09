@@ -1,0 +1,17 @@
+/data/datasets/ESD/0001/Neutral/0001_000236.wav|0|我不需要嗅觉，所以没有鼻子。
+/data/datasets/ESD/0001/Surprise/0001_001710.wav|0|这局我让你开，今天我不想错过。
+/data/datasets/ESD/0002/Sad/0002_001160.wav|1|自己的事情要自己做。
+/data/datasets/ESD/0003/Happy/0003_000724.wav|2|你的身影总是在我心里晃来晃去。
+/data/datasets/ESD/0003/Surprise/0003_001458.wav|2|让人看上去就感到宽广，气魄非凡。
+/data/datasets/ESD/0004/Happy/0004_000926.wav|3|你要做爸爸了，真让人难以相信。
+/data/datasets/ESD/0004/Surprise/0004_001735.wav|3|他们将于今年夏天结婚。
+/data/datasets/ESD/0005/Neutral/0005_000289.wav|4|不会，不过我很喜欢单板滑雪。
+/data/datasets/ESD/0005/Sad/0005_001290.wav|4|大约一个小时左右。
+/data/datasets/ESD/0005/Surprise/0005_001686.wav|4|门儿都没有，现在还不会。
+/data/datasets/ESD/0006/Happy/0006_000805.wav|5|我们俩合不来，还经常吵架。
+/data/datasets/ESD/0008/Neutral/0008_000325.wav|7|尽管提意见，我会改正的。
+/data/datasets/ESD/0008/Happy/0008_000901.wav|7|也就是一大堆照片。
+/data/datasets/ESD/0008/Surprise/0008_001655.wav|7|最初我的工作是当一名佣人。
+/data/datasets/ESD/0009/Neutral/0009_000277.wav|8|是的，所以我永不喝它。
+/data/datasets/ESD/0009/Happy/0009_001017.wav|8|你看上去比以前更漂亮了。
+/data/datasets/ESD/0010/Sad/0010_001212.wav|9|原来你也在玩这个

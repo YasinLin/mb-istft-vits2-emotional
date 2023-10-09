@@ -6,3 +6,5 @@ DUMMY*
 logs
 *.wav
 monotonic_align
+models
+dataset

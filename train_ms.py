@@ -16,6 +16,7 @@ from torch.cuda.amp import autocast, GradScaler
 import tqdm
 from pqmf import PQMF
 import commons
+import platform
 import utils
 from data_utils import (
     TextAudioSpeakerLoader,
@@ -53,6 +54,7 @@ def main():
 
     hps = utils.get_hparams()
     mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
+    # run(0, 1, hps)
 
 
 def run(rank, n_gpus, hps):
@@ -64,10 +66,14 @@ def run(rank, n_gpus, hps):
         writer = SummaryWriter(log_dir=hps.model_dir)
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
 
-    if os.name == 'nt':
-        dist.init_process_group(backend='gloo', init_method='env://', world_size=n_gpus, rank=rank)
-    else:
-        dist.init_process_group(backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
+    # backend_str = (platform.system().lower() == "windows") and "gloo" or "nccl"
+    dist.init_process_group(
+        backend="nccl", init_method="env://", world_size=n_gpus, rank=rank
+    )
+    # if os.name == 'nt':
+    #     dist.init_process_group(backend='gloo', init_method='env://', world_size=n_gpus, rank=rank)
+    # else:
+    #     dist.init_process_group(backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
     torch.manual_seed(hps.train.seed)
     torch.cuda.set_device(rank)
 
@@ -89,7 +95,7 @@ def run(rank, n_gpus, hps):
         rank=rank,
         shuffle=True)
     collate_fn = TextAudioSpeakerCollate()
-    train_loader = DataLoader(train_dataset, num_workers=8, shuffle=False, pin_memory=True,
+    train_loader = DataLoader(train_dataset, num_workers=1, shuffle=False, pin_memory=True,
                               collate_fn=collate_fn, batch_sampler=train_sampler)
     if rank == 0:
         eval_dataset = TextAudioSpeakerLoader(hps.data.validation_files, hps.data)
@@ -234,7 +240,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         loader = tqdm.tqdm(train_loader, desc='Loading train data')
     else:
         loader = train_loader
-    for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths, speakers) in enumerate(loader):
+    for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths, speakers, emo, bertpt) in enumerate(loader):
         if net_g.module.use_noise_scaled_mas:
             current_mas_noise_scale = net_g.module.mas_noise_scale_initial - net_g.module.noise_scale_delta * global_step
             net_g.module.current_mas_noise_scale = max(current_mas_noise_scale, 0.0)
@@ -242,12 +248,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         spec, spec_lengths = spec.cuda(rank, non_blocking=True), spec_lengths.cuda(rank, non_blocking=True)
         y, y_lengths = y.cuda(rank, non_blocking=True), y_lengths.cuda(rank, non_blocking=True)
         speakers = speakers.cuda(rank, non_blocking=True)
+        emo = emo.cuda(rank, non_blocking=True)
+        bertpt = bertpt.cuda(rank, non_blocking=True)
 
         with autocast(enabled=hps.train.fp16_run):
             y_hat, y_hat_mb, l_length, attn, ids_slice, x_mask, z_mask, \
             (z, z_p, m_p, logs_p, m_q, logs_q), (hidden_x, logw, logw_) = net_g(x, x_lengths, spec, spec_lengths,
-                                                                                speakers)
-
+                                                                            speakers, emo, bertpt=bertpt)
             if hps.model.use_mel_posterior_encoder or hps.data.use_mel_posterior_encoder:
                 mel = spec
             else:
@@ -291,7 +298,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 scaler.unscale_(optim_dur_disc)
                 grad_norm_dur_disc = commons.clip_grad_value_(net_dur_disc.parameters(), None)
                 scaler.step(optim_dur_disc)
-
+            
         optim_d.zero_grad()
         scaler.scale(loss_disc_all).backward()
         scaler.unscale_(optim_d)
@@ -387,11 +394,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
 def evaluate(hps, generator, eval_loader, writer_eval):
     generator.eval()
     with torch.no_grad():
-        for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths, speakers) in enumerate(eval_loader):
+        for batch_idx, (x, x_lengths, spec, spec_lengths, y, y_lengths, speakers, emo, bertpt) in enumerate(eval_loader):
             x, x_lengths = x.cuda(0), x_lengths.cuda(0)
             spec, spec_lengths = spec.cuda(0), spec_lengths.cuda(0)
             y, y_lengths = y.cuda(0), y_lengths.cuda(0)
             speakers = speakers.cuda(0)
+            emo = emo.cuda(0)
+            bertpt = bertpt.cuda(0)
 
             # remove else
             x = x[:1]
@@ -401,8 +410,10 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             y = y[:1]
             y_lengths = y_lengths[:1]
             speakers = speakers[:1]
+            emo = emo[:1]
+            bertpt = bertpt[:1]
             break
-        y_hat, y_hat_mb, attn, mask, *_ = generator.module.infer(x, x_lengths, speakers, max_len=1000)
+        y_hat, y_hat_mb, attn, mask, *_ = generator.module.infer(x, x_lengths, speakers, emo, bertpt, max_len=1000)
         y_hat_lengths = mask.sum([1, 2]).long() * hps.data.hop_length
 
         if hps.model.use_mel_posterior_encoder or hps.data.use_mel_posterior_encoder:
